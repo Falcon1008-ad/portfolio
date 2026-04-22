@@ -309,12 +309,56 @@
         Looking for someone who bridges analytics and engineering, builds with AI at the core,
         or just wants to talk data over coffee — let's connect.
       </p>
+
+      <form id="contact-form" class="contact-form" novalidate>
+        <!-- Web3Forms: Replace YOUR_ACCESS_KEY_HERE with the key from web3forms.com -->
+        <input type="hidden" name="access_key" value="a1f8226a-4bdb-4a4b-b0ac-cf5ad5beb8f7" />
+        <input type="hidden" name="subject" value="New portfolio contact from {name}" />
+        <input type="hidden" name="from_name" value="Aradhya's Portfolio" />
+        <!-- Honeypot (anti-spam) -->
+        <input type="checkbox" name="botcheck" class="hp-field" tabindex="-1" autocomplete="off" />
+
+        <div class="form-row">
+          <label for="full-name">Full Name</label>
+          <input type="text" id="full-name" name="name" placeholder="Jane Doe" required />
+        </div>
+
+        <div class="form-row">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" placeholder="jane@example.com" required />
+        </div>
+
+        <div class="form-row">
+          <label for="phone">Phone Number</label>
+          <input type="tel" id="phone" name="phone" placeholder="+1 555 123 4567" required pattern="[0-9+\s\-()]{7,}" />
+        </div>
+
+        <div class="form-row">
+          <label for="message">Message <span class="optional">(optional)</span></label>
+          <textarea id="message" name="message" rows="3" placeholder="Anything you'd like me to know..."></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary form-submit" id="submit-btn">
+          <span class="btn-text">Submit</span>
+          <span class="btn-spinner" aria-hidden="true"></span>
+        </button>
+      </form>
+
       <div class="contact-actions">
-        <a href="mailto:agrawalaradhya121@gmail.com" class="btn btn-primary">Say Hello</a>
+        <a href="mailto:agrawalaradhya121@gmail.com" class="btn btn-ghost">Email Directly</a>
         <a href="https://www.linkedin.com/in/agrawalaradhya0204/" target="_blank" rel="noopener" class="btn btn-ghost">LinkedIn</a>
       </div>
     </div>
   </section>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast" role="status" aria-live="polite">
+    <svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <div class="toast-content">
+      <div class="toast-title">Thank You for reaching out!</div>
+      <div class="toast-msg">I'll get back to you shortly.</div>
+    </div>
+  </div>
 
   <footer class="footer">
     <div class="container">

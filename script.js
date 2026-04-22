@@ -86,6 +86,12 @@ if (contactForm) {
       return;
     }
 
+    // Combine First + Last name into the hidden `name` field (for email subject)
+    const firstName = contactForm.querySelector('#first-name')?.value.trim() || '';
+    const lastName = contactForm.querySelector('#last-name')?.value.trim() || '';
+    const combined = contactForm.querySelector('#combined-name');
+    if (combined) combined.value = `${firstName} ${lastName}`.trim();
+
     const formData = new FormData(contactForm);
     const accessKey = formData.get('access_key');
 

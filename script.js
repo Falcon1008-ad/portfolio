@@ -75,20 +75,44 @@ function showFormError(msg) {
   contactForm.appendChild(div);
 }
 
-// Stricter email validation — catches typos browsers miss
-// (HTML5 validation accepts "a@b" which is technically valid but almost always a typo)
-function isValidEmail(email) {
-  // Requires: local@domain.tld (TLD must be at least 2 chars, no spaces, valid chars only)
+// Stricter format validation — catches typos browsers miss
+function isValidEmailFormat(email) {
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   if (!emailRegex.test(email)) return false;
-  // Reject common typos
   const lower = email.toLowerCase();
   const typoDomains = ['gmial.com', 'gamil.com', 'gmai.com', 'gnail.com', 'yaho.com', 'hotnail.com', 'outlok.com'];
   const domain = lower.split('@')[1];
   if (typoDomains.includes(domain)) return false;
-  // Reject consecutive dots
   if (email.includes('..')) return false;
   return true;
+}
+
+// MX record lookup via Google DNS-over-HTTPS
+// Verifies the email's domain actually has mail servers configured
+async function domainHasMx(domain) {
+  try {
+    const response = await fetch(
+      `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`,
+      { headers: { 'Accept': 'application/dns-json' } }
+    );
+    if (!response.ok) return true; // fail open on network errors
+    const data = await response.json();
+    // MX records exist if Answer array has entries with type 15 (MX)
+    return Array.isArray(data.Answer) && data.Answer.some(r => r.type === 15);
+  } catch {
+    return true; // fail open — don't block on network errors
+  }
+}
+
+// Cache MX lookups so we don't re-query the same domain twice
+const mxCache = new Map();
+async function isEmailDeliverable(email) {
+  const domain = email.split('@')[1]?.toLowerCase();
+  if (!domain) return false;
+  if (mxCache.has(domain)) return mxCache.get(domain);
+  const result = await domainHasMx(domain);
+  mxCache.set(domain, result);
+  return result;
 }
 
 function markFieldInvalid(field) {
@@ -98,30 +122,41 @@ function markFieldInvalid(field) {
   field.addEventListener('input', () => field.classList.remove('field-invalid'), { once: true });
 }
 
+function setFieldChecking(field, checking) {
+  if (!field) return;
+  field.classList.toggle('field-checking', checking);
+}
+
 if (contactForm) {
   const emailField = contactForm.querySelector('#email');
 
-  // Live validation — clear invalid state as user types a valid email
-  emailField?.addEventListener('blur', () => {
+  // Live validation on blur — check format + MX
+  emailField?.addEventListener('blur', async () => {
     const val = emailField.value.trim();
-    if (val && !isValidEmail(val)) {
+    if (!val) return;
+    if (!isValidEmailFormat(val)) {
       markFieldInvalid(emailField);
+      return;
     }
+    setFieldChecking(emailField, true);
+    const deliverable = await isEmailDeliverable(val);
+    setFieldChecking(emailField, false);
+    if (!deliverable) markFieldInvalid(emailField);
   });
 
   contactForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearFormError();
 
-    // Basic HTML5 validation (required fields, patterns)
     if (!contactForm.checkValidity()) {
       contactForm.reportValidity();
       return;
     }
 
-    // Strict email validation — show toast + highlight field if invalid
     const emailValue = emailField?.value.trim() || '';
-    if (!isValidEmail(emailValue)) {
+
+    // Format check
+    if (!isValidEmailFormat(emailValue)) {
       markFieldInvalid(emailField);
       showToast(
         'Invalid email address',
@@ -129,6 +164,29 @@ if (contactForm) {
         true
       );
       showFormError('The email address you entered looks invalid. Please double-check and try again.');
+      return;
+    }
+
+    // MX record check — does the domain actually receive email?
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+    submitBtn.querySelector('.btn-text').textContent = 'Verifying...';
+
+    const deliverable = await isEmailDeliverable(emailValue);
+
+    if (!deliverable) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('loading');
+      submitBtn.querySelector('.btn-text').textContent = 'Send';
+      markFieldInvalid(emailField);
+      showToast(
+        'Email does not exist',
+        "This email address doesn't appear to be real. Please enter a correct one.",
+        true
+      );
+      showFormError(
+        "We couldn't find mail servers for that email's domain. Please double-check your email address."
+      );
       return;
     }
 
@@ -170,7 +228,7 @@ if (contactForm) {
     } finally {
       submitBtn.disabled = false;
       submitBtn.classList.remove('loading');
-      submitBtn.querySelector('.btn-text').textContent = 'Submit';
+      submitBtn.querySelector('.btn-text').textContent = 'Send';
     }
   });
 }

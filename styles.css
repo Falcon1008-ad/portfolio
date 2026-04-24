@@ -526,6 +526,18 @@ a.contact-item:hover .contact-item-icon {
   line-height: 1.5;
 }
 
+.captcha-row {
+  display: flex;
+  justify-content: flex-start;
+  margin: 4px 0 8px;
+}
+.captcha-row .h-captcha {
+  transform-origin: left center;
+}
+@media (max-width: 480px) {
+  .captcha-row .h-captcha { transform: scale(0.9); }
+}
+
 .form-footer {
   display: flex;
   justify-content: flex-end;

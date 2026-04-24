@@ -391,6 +391,11 @@
             <textarea id="message" name="message" rows="4"></textarea>
           </div>
 
+          <!-- hCaptcha (blocks bots) -->
+          <div class="form-row captcha-row">
+            <div class="h-captcha" data-sitekey="592207e4-56fa-4664-8d0e-e114d0e07804" data-theme="dark"></div>
+          </div>
+
           <div class="form-footer">
             <button type="submit" class="btn btn-primary form-submit" id="submit-btn">
               <span class="btn-text">Send</span>
@@ -420,6 +425,7 @@
     </div>
   </footer>
 
+  <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
   <script src="script.js"></script>
 </body>
 </html>

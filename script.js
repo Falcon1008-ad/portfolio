@@ -217,6 +217,14 @@ if (contactForm) {
       return;
     }
 
+    // hCaptcha: require a solved token before submitting
+    const captchaToken = contactForm.querySelector('[name="h-captcha-response"]')?.value;
+    if (!captchaToken) {
+      showToast('Please complete the captcha', 'Verify you are human before sending.', true);
+      showFormError('Please complete the captcha before sending.');
+      return;
+    }
+
     const emailValue = emailField?.value.trim() || '';
 
     // Format check
@@ -278,6 +286,7 @@ if (contactForm) {
 
       if (result.success) {
         contactForm.reset();
+        if (window.hcaptcha) window.hcaptcha.reset();
         showToast('Thank You for reaching out!', "I'll get back to you shortly.");
       } else {
         showFormError(result.message || 'Something went wrong. Please try again.');

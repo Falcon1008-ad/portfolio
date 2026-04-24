@@ -3,3 +3,8 @@ node_modules/
 .vscode/
 .idea/
 *.log
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local

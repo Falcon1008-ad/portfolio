@@ -75,14 +75,60 @@ function showFormError(msg) {
   contactForm.appendChild(div);
 }
 
+// Stricter email validation — catches typos browsers miss
+// (HTML5 validation accepts "a@b" which is technically valid but almost always a typo)
+function isValidEmail(email) {
+  // Requires: local@domain.tld (TLD must be at least 2 chars, no spaces, valid chars only)
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(email)) return false;
+  // Reject common typos
+  const lower = email.toLowerCase();
+  const typoDomains = ['gmial.com', 'gamil.com', 'gmai.com', 'gnail.com', 'yaho.com', 'hotnail.com', 'outlok.com'];
+  const domain = lower.split('@')[1];
+  if (typoDomains.includes(domain)) return false;
+  // Reject consecutive dots
+  if (email.includes('..')) return false;
+  return true;
+}
+
+function markFieldInvalid(field) {
+  if (!field) return;
+  field.classList.add('field-invalid');
+  field.focus();
+  field.addEventListener('input', () => field.classList.remove('field-invalid'), { once: true });
+}
+
 if (contactForm) {
+  const emailField = contactForm.querySelector('#email');
+
+  // Live validation — clear invalid state as user types a valid email
+  emailField?.addEventListener('blur', () => {
+    const val = emailField.value.trim();
+    if (val && !isValidEmail(val)) {
+      markFieldInvalid(emailField);
+    }
+  });
+
   contactForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearFormError();
 
-    // Basic validation
+    // Basic HTML5 validation (required fields, patterns)
     if (!contactForm.checkValidity()) {
       contactForm.reportValidity();
+      return;
+    }
+
+    // Strict email validation — show toast + highlight field if invalid
+    const emailValue = emailField?.value.trim() || '';
+    if (!isValidEmail(emailValue)) {
+      markFieldInvalid(emailField);
+      showToast(
+        'Invalid email address',
+        'Please enter a correct email so I can get back to you.',
+        true
+      );
+      showFormError('The email address you entered looks invalid. Please double-check and try again.');
       return;
     }
 

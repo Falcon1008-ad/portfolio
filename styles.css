@@ -498,6 +498,19 @@ a.contact-item:hover .contact-item-icon {
   box-shadow: 0 0 0 3px var(--accent-glow);
   background: var(--bg);
 }
+.form-row input.field-invalid {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+  animation: shake 0.35s ease;
+}
+.form-row input.field-invalid:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
 .form-row textarea {
   resize: vertical;
   min-height: 110px;

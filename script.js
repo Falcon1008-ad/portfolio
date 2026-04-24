@@ -87,32 +87,96 @@ function isValidEmailFormat(email) {
   return true;
 }
 
-// MX record lookup via Google DNS-over-HTTPS
-// Verifies the email's domain actually has mail servers configured
+// AbstractAPI key — restrict allowed domains in AbstractAPI dashboard to prevent abuse
+const ABSTRACT_API_KEY = '5f1b218d56dd4c76b88ac132c8e6f168';
+
+// Fallback: MX record lookup via Google DNS-over-HTTPS
 async function domainHasMx(domain) {
   try {
     const response = await fetch(
       `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`,
       { headers: { 'Accept': 'application/dns-json' } }
     );
-    if (!response.ok) return true; // fail open on network errors
+    if (!response.ok) return true;
     const data = await response.json();
-    // MX records exist if Answer array has entries with type 15 (MX)
     return Array.isArray(data.Answer) && data.Answer.some(r => r.type === 15);
   } catch {
-    return true; // fail open — don't block on network errors
+    return true;
   }
 }
 
-// Cache MX lookups so we don't re-query the same domain twice
-const mxCache = new Map();
+// AbstractAPI Email Verification — checks format + MX + SMTP + disposable detection
+// Returns: { ok: boolean, reason: string }
+async function verifyEmailWithAbstract(email) {
+  try {
+    const url = `https://emailvalidation.abstractapi.com/v1/?api_key=${ABSTRACT_API_KEY}&email=${encodeURIComponent(email)}`;
+    const response = await fetch(url);
+    if (!response.ok) return { ok: true, reason: 'abstract_api_unavailable' }; // fail open
+    const data = await response.json();
+
+    // Reject clearly undeliverable addresses
+    if (data.deliverability === 'UNDELIVERABLE') {
+      return { ok: false, reason: 'undeliverable' };
+    }
+    // Reject disposable / temp-mail services
+    if (data.is_disposable_email?.value === true) {
+      return { ok: false, reason: 'disposable' };
+    }
+    // Reject if MX records are missing
+    if (data.is_mx_found?.value === false) {
+      return { ok: false, reason: 'no_mx' };
+    }
+    // Reject if format is invalid (shouldn't happen since we format-check first)
+    if (data.is_valid_format?.value === false) {
+      return { ok: false, reason: 'bad_format' };
+    }
+    // DELIVERABLE, RISKY, or UNKNOWN — allow through
+    // (Gmail/Outlook use catch-all responses, so RISKY is common for real addresses)
+    return { ok: true, reason: data.deliverability || 'ok' };
+  } catch {
+    return { ok: true, reason: 'abstract_api_error' }; // fail open on network errors
+  }
+}
+
+// Cache verifications so we don't re-check the same email twice
+const emailCache = new Map();
 async function isEmailDeliverable(email) {
-  const domain = email.split('@')[1]?.toLowerCase();
-  if (!domain) return false;
-  if (mxCache.has(domain)) return mxCache.get(domain);
-  const result = await domainHasMx(domain);
-  mxCache.set(domain, result);
+  const key = email.toLowerCase();
+  if (emailCache.has(key)) return emailCache.get(key);
+
+  // Primary: AbstractAPI
+  const abstract = await verifyEmailWithAbstract(email);
+  if (!abstract.ok) {
+    emailCache.set(key, { ok: false, reason: abstract.reason });
+    return { ok: false, reason: abstract.reason };
+  }
+
+  // Fallback: If AbstractAPI was unavailable, verify via MX lookup
+  if (abstract.reason === 'abstract_api_unavailable' || abstract.reason === 'abstract_api_error') {
+    const domain = email.split('@')[1]?.toLowerCase();
+    const mxOk = domain ? await domainHasMx(domain) : false;
+    const result = { ok: mxOk, reason: mxOk ? 'mx_ok' : 'no_mx' };
+    emailCache.set(key, result);
+    return result;
+  }
+
+  const result = { ok: true, reason: abstract.reason };
+  emailCache.set(key, result);
   return result;
+}
+
+function emailErrorMessage(reason) {
+  switch (reason) {
+    case 'disposable':
+      return "Please use a permanent email address (not a temporary / disposable one).";
+    case 'no_mx':
+    case 'undeliverable':
+      return "This email address doesn't appear to exist. Please double-check and try again.";
+    case 'bad_format':
+      return "The email format looks invalid. Please enter a correct email.";
+    default:
+      return "This email address doesn't appear to be valid. Please enter a correct one.";
+  }
 }
 
 function markFieldInvalid(field) {
@@ -130,7 +194,7 @@ function setFieldChecking(field, checking) {
 if (contactForm) {
   const emailField = contactForm.querySelector('#email');
 
-  // Live validation on blur — check format + MX
+  // Live validation on blur — check format + full verification
   emailField?.addEventListener('blur', async () => {
     const val = emailField.value.trim();
     if (!val) return;
@@ -139,9 +203,9 @@ if (contactForm) {
       return;
     }
     setFieldChecking(emailField, true);
-    const deliverable = await isEmailDeliverable(val);
+    const result = await isEmailDeliverable(val);
     setFieldChecking(emailField, false);
-    if (!deliverable) markFieldInvalid(emailField);
+    if (!result.ok) markFieldInvalid(emailField);
   });
 
   contactForm.addEventListener('submit', async (e) => {
@@ -167,26 +231,21 @@ if (contactForm) {
       return;
     }
 
-    // MX record check — does the domain actually receive email?
+    // Full email verification via AbstractAPI (with MX fallback)
     submitBtn.disabled = true;
     submitBtn.classList.add('loading');
     submitBtn.querySelector('.btn-text').textContent = 'Verifying...';
 
-    const deliverable = await isEmailDeliverable(emailValue);
+    const verification = await isEmailDeliverable(emailValue);
 
-    if (!deliverable) {
+    if (!verification.ok) {
       submitBtn.disabled = false;
       submitBtn.classList.remove('loading');
       submitBtn.querySelector('.btn-text').textContent = 'Send';
       markFieldInvalid(emailField);
-      showToast(
-        'Email does not exist',
-        "This email address doesn't appear to be real. Please enter a correct one.",
-        true
-      );
-      showFormError(
-        "We couldn't find mail servers for that email's domain. Please double-check your email address."
-      );
+      const msg = emailErrorMessage(verification.reason);
+      showToast('Invalid email address', msg, true);
+      showFormError(msg);
       return;
     }
 
